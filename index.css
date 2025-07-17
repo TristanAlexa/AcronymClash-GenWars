@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Poppins', sans-serif;
+}
+.font-anton { font-family: 'Anton', sans-serif; }
+.font-bebas { font-family: 'Bebas Neue', 'sans-serif'; }
+.font-roboto-condensed { font-family: 'Roboto Condensed', 'sans-serif'; }

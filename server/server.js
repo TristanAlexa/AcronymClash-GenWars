@@ -19,7 +19,8 @@ const io = new Server(server, {
 // --- Path Configuration for ES Modules ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const rootDir = path.join(__dirname, '..');
+// Navigate up from server/ to the project root to find the 'dist' folder
+const distDir = path.join(__dirname, '..', 'dist');
 
 
 // --- Gemini API Setup ---
@@ -54,8 +55,8 @@ const SUBMISSION_TIME = 45;
 const VOTING_TIME = 20;
 const RESULTS_TIME = 10;
 
-// --- Serve Static Files ---
-app.use(express.static(rootDir));
+// --- Serve Static Files from 'dist' directory ---
+app.use(express.static(distDir));
 
 
 // --- Main Socket.IO Connection Logic ---
@@ -483,9 +484,9 @@ Your witty backronym:`;
     }
 }
 
-// --- Catchall route to serve the frontend ---
+// --- Catchall route to serve the frontend's index.html ---
 app.get('*', (req, res) => {
-    res.sendFile(path.join(rootDir, 'index.html'));
+    res.sendFile(path.join(distDir, 'index.html'));
 });
 
 
