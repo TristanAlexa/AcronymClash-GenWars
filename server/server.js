@@ -1,4 +1,5 @@
 
+
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -395,10 +396,10 @@ async function generateThemeAndAcronym(letterCount) {
         for (let i = 0; i < letterCount; i++) {
             acronym += letters.charAt(Math.floor(Math.random() * letters.length));
         }
-        return { theme: "Classic Movie Quotes", acronym };
+        return { theme: "Awkward Dates", acronym };
     }
     
-    const prompt = `Generate a funny, clever theme for a word game round. Also, generate a single ${letterCount}-letter non existing acronym. The letters generated should not be something like "XXXX" or "ZZYY".`;
+    const prompt = `Generate a funny, relatable theme, situation, or trope for a word game round. The theme should be between 2-4 words. Also, generate a single ${letterCount}-letter non-existing acronym. The letters generated should not be something like "XXXX" or "ZZYY".`;
 
     const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
@@ -410,11 +411,11 @@ async function generateThemeAndAcronym(letterCount) {
                 properties: {
                     theme: {
                         type: Type.STRING,
-                        description: "A funny, clever theme for a word game round. Something relatable or humorous."
+                        description: "A funny, relatable theme, situation, or trope. The theme must be between 2 and 4 words."
                     },
                     acronym: {
                         type: Type.STRING,
-                        description: `A single ${letterCount}-letter non existing acronym. The letters generated should not be something like "XXXX" or "ZZYY".`
+                        description: `A single ${letterCount}-letter non-existing acronym. The letters generated should not be something like "XXXX" or "ZZYY".`
                     }
                 },
                 required: ["theme", "acronym"]
