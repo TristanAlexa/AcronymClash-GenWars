@@ -133,9 +133,10 @@ io.on('connection', (socket) => {
         }
 
         try {
-            const { theme, acronym } = await generateThemeAndAcronym(difficulty);
+            const { theme, acronym } = await generateThemeAndAcronym(difficulty, game.usedThemes);
             game.theme = theme;
             game.acronym = acronym;
+            game.usedThemes.push(theme); // Add theme to memory for this session
             
             await startSubmissionPhase(gameId);
 
@@ -218,6 +219,7 @@ function createNewGame(gameId, hostId) {
         roundWinnerId: undefined,
         countdown: 0,
         timerId: null,
+        usedThemes: [],
     };
 }
 
@@ -388,7 +390,7 @@ function generateGameCode() {
 
 // --- Gemini API Functions ---
 
-async function generateThemeAndAcronym(letterCount) {
+async function generateThemeAndAcronym(letterCount, usedThemes = []) {
     if (!ai) {
         console.warn("AI not initialized, returning mock theme/acronym.");
         const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -396,10 +398,24 @@ async function generateThemeAndAcronym(letterCount) {
         for (let i = 0; i < letterCount; i++) {
             acronym += letters.charAt(Math.floor(Math.random() * letters.length));
         }
-        return { theme: "Awkward Dates", acronym };
+        return { theme: "Awkward First Dates", acronym };
     }
     
-    const prompt = `Generate a funny, relatable theme, situation, or trope for a word game round. The theme should be between 2-4 words. Also, generate a single ${letterCount}-letter non-existing acronym. The letters generated should not be something like "XXXX" or "ZZYY".`;
+    const usedThemesString = usedThemes.length > 0 ? `Previously used themes (do not repeat these or similar ideas): [${usedThemes.join(', ')}]` : "This is the first round, no themes used yet.";
+
+    const prompt = `Your task is to generate content for a word game.
+
+1.  **A theme:** This theme must be a funny, relatable situation or trope.
+    -   **Constraint 1:** The theme MUST be short, between 2 and 4 words exactly. Do NOT use more than 4 words.
+    -   **Constraint 2:** The theme MUST be unique and not similar to themes already used in this game.
+    -   ${usedThemesString}
+
+2.  **An acronym:** A single ${letterCount}-letter non-existing acronym. The letters should be varied (e.g., not 'XXXX' or 'QPV' or 'ZXVWY').
+
+**Example of a good theme:** "Awkward First Date"
+**Example of a bad theme:** "Thinking about things you would find at a thrift shop"
+
+Respond ONLY with the JSON object that matches the requested schema.`;
 
     const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
@@ -411,11 +427,11 @@ async function generateThemeAndAcronym(letterCount) {
                 properties: {
                     theme: {
                         type: Type.STRING,
-                        description: "A funny, relatable theme, situation, or trope. The theme must be between 2 and 4 words."
+                        description: "A funny, relatable theme, situation, or trope. MUST be between 2 and 4 words. MUST be unique and not similar to themes already used."
                     },
                     acronym: {
                         type: Type.STRING,
-                        description: `A single ${letterCount}-letter non-existing acronym. The letters generated should not be something like "XXXX" or "ZZYY".`
+                        description: `A single ${letterCount}-letter non-existing acronym. The letters generated MUST NOT be something like "QPV" or "XXXX" or "VZXW".`
                     }
                 },
                 required: ["theme", "acronym"]
