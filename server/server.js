@@ -406,14 +406,14 @@ async function generateThemeAndAcronym(letterCount, usedThemes = []) {
     const prompt = `Your task is to generate content for a word game.
 
 1.  **A theme:** This theme must be a funny, relatable situation or trope.
-    -   **Constraint 1:** The theme MUST be short, between 2 and 4 words exactly. Do NOT use more than 4 words.
+    -   **Constraint 1:** The theme MUST be short and concise, between 3 and 6 words exactly. Do NOT use more than 6 words.
     -   **Constraint 2:** The theme MUST be unique and not similar to themes already used in this game.
     -   ${usedThemesString}
 
-2.  **An acronym:** A single ${letterCount}-letter non-existing acronym. The letters should be varied (e.g., not 'XXXX' or 'QPV' or 'ZXVWY').
+2.  **An acronym:** A single ${letterCount}-letter non-existing acronym. The letters should be varied with consonans and vowels. (e.g., not 'AAA' or 'QQQQ' or 'QXZWY').
 
-**Example of a good theme:** "Awkward First Date"
-**Example of a bad theme:** "Thinking about things you would find at a thrift shop"
+**Examples of a good themes to use:** "Awkward First Dates", "How'd Santa fit in the chimney?", "Why my partner is angry", "Why I'll never be rich"
+**Example of a bad themes to NEVER use:** "Thinking about things you would find at a thrift shop"
 
 Respond ONLY with the JSON object that matches the requested schema.`;
 
@@ -427,11 +427,11 @@ Respond ONLY with the JSON object that matches the requested schema.`;
                 properties: {
                     theme: {
                         type: Type.STRING,
-                        description: "A funny, relatable theme, situation, or trope. MUST be between 2 and 4 words. MUST be unique and not similar to themes already used."
+                        description: "A funny, relatable theme, situation, or trope. MUST be between 3 and 6 words. MUST be unique and not similar to themes already used."
                     },
                     acronym: {
                         type: Type.STRING,
-                        description: `A single ${letterCount}-letter non-existing acronym. The letters generated MUST NOT be something like "QPV" or "XXXX" or "VZXW".`
+                        description: `A single ${letterCount}-letter non-existing acronym. The letters generated MUST NOT be the same 3, 4, or 5 letters in a row.`
                     }
                 },
                 required: ["theme", "acronym"]
