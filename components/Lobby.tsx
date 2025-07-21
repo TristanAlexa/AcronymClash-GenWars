@@ -30,7 +30,7 @@ const Lobby: React.FC<LobbyProps> = ({ game, currentPlayerId, onLeaveLobby }) =>
                 
                 {/* Player List */}
                 <div className="md:w-1/3 p-4 bg-slate-900/50 rounded-lg">
-                    <h3 className="text-xl font-bebas text-cyan-300 tracking-wider mb-3">Players ({players.length}/8)</h3>
+                    <h3 className="text-xl font-bebas text-cyan-300 tracking-wider mb-3">Players ({players.length}/10)</h3>
                     <div className="space-y-3">
                         {players.map(p => (
                             <div key={p.id} className={`p-3 rounded-lg flex items-center justify-between ${p.id === currentPlayerId ? 'bg-blue-900/70' : 'bg-slate-700/50'}`}>
@@ -40,7 +40,7 @@ const Lobby: React.FC<LobbyProps> = ({ game, currentPlayerId, onLeaveLobby }) =>
                                 </div>
                             </div>
                         ))}
-                         {[...Array(Math.max(0, 8 - players.length))].map((_, i) => (
+                         {[...Array(Math.max(0, 10 - players.length))].map((_, i) => (
                             <div key={`empty-${i}`} className="p-3 rounded-lg bg-slate-800/40 text-center text-slate-400 italic">
                                 Waiting for player...
                             </div>

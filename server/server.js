@@ -1,5 +1,4 @@
 
-
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -41,11 +40,18 @@ const Generation = {
 };
 
 const AI_OPPONENTS = [
-  { name: 'Zoe', generation: Generation.GenZ, region: 'California' },
-  { name: 'Mike', generation: Generation.Millennials, region: 'New York' },
-  { name: 'Xander', generation: Generation.GenX, region: 'Quebec' },
-  { name: 'Barbara', generation: Generation.Boomers, region: 'Illinois' },
+    { id: 'ai-zoe', name: 'Zoe', generation: Generation.GenZ, isAI: true, region: 'California', score: 0, hasSubmitted: false, wins: 0 },
+    { id: 'ai-mike', name: 'Mike', generation: Generation.Millennials, isAI: true, region: 'New York', score: 0, hasSubmitted: false, wins: 0 },
+    { id: 'ai-xander', name: 'Xander', generation: Generation.GenX, isAI: true, region: 'Quebec', score: 0, hasSubmitted: false, wins: 0 },
+    { id: 'ai-barbara', name: 'Barbara', generation: Generation.Boomers, isAI: true, region: 'Illinois', score: 0, hasSubmitted: false, wins: 0 },
+    { id: 'ai-kyle', name: 'Kyle', generation: Generation.GenZ, isAI: true, region: 'Georgia', score: 0, hasSubmitted: false, wins: 0 },
+    { id: 'ai-ashley', name: 'Ashley', generation: Generation.Millennials, isAI: true, region: 'Ontario', score: 0, hasSubmitted: false, wins: 0 },
+    { id: 'ai-heather', name: 'Heather', generation: Generation.GenX, isAI: true, region: 'California', score: 0, hasSubmitted: false, wins: 0 },
+    { id: 'ai-richard', name: 'Richard', generation: Generation.Boomers, isAI: true, region: 'New York', score: 0, hasSubmitted: false, wins: 0 },
+    { id: 'ai-liam', name: 'Liam', generation: Generation.GenZ, isAI: true, region: 'Illinois', score: 0, hasSubmitted: false, wins: 0 },
+    { id: 'ai-chad', name: 'Chad', generation: Generation.Millennials, isAI: true, region: 'Quebec', score: 0, hasSubmitted: false, wins: 0 },
 ];
+
 
 const games = {}; // In-memory store for all active games
 
@@ -60,6 +66,7 @@ const FACEOFF_SUBMIT_TIME = 30;
 const FACEOFF_VOTE_TIME = 20;
 const FACEOFF_RESULTS_TIME = 5;
 const GAME_OVER_TIME = 10;
+const LOBBY_SIZE = 10;
 
 app.use(express.static(distDir));
 
@@ -199,7 +206,7 @@ function joinGame(socket, gameId) {
         socket.emit('gameInProgress', 'This game has already started.');
         return;
     }
-    if (game.players.filter(p => !p.isAI).length >= 4 && !game.players.some(p => p.id === player.id)) {
+    if (game.players.filter(p => !p.isAI).length >= LOBBY_SIZE && !game.players.some(p => p.id === player.id)) {
         socket.emit('lobbyFull', 'This lobby is full.');
         return;
     }
@@ -236,14 +243,21 @@ function startGame(gameId) {
     const game = games[gameId];
     if (!game) return;
 
-    // Add AIs to fill empty spots
-    const aiCount = 4;
-    const neededAIs = aiCount - game.players.filter(p => p.isAI).length;
-    for (let i = 0; i < neededAIs; i++) {
-        const aiTemplate = AI_OPPONENTS[i % AI_OPPONENTS.length];
+    // Fill remaining lobby spots with AI up to the max size
+    const neededAIs = Math.max(0, LOBBY_SIZE - game.players.length);
+    
+    const availableAIs = AI_OPPONENTS.filter(aiTemplate => 
+        !game.players.some(p => p.name === aiTemplate.name && p.isAI)
+    );
+
+    for (let i = 0; i < neededAIs && i < availableAIs.length; i++) {
+        const aiTemplate = availableAIs[i];
+        const newAIPlayer = { ...aiTemplate };
+        delete newAIPlayer.id; // Remove the template ID
+
         game.players.push({
-            ...aiTemplate,
-            id: `ai-${i}-${Date.now()}`,
+            ...newAIPlayer,
+            id: `ai-${aiTemplate.name.toLowerCase()}-${Date.now()}`,
             isAI: true,
             score: 0,
             hasSubmitted: false,
@@ -326,8 +340,14 @@ async function startSubmissionPhase(gameId) {
             return { playerId: aiPlayer.id, playerName: aiPlayer.name, backronym, votes: [] };
         })
     );
-    const aiSubmissions = await Promise.all(submissionPromises);
-    game.submissions.push(...aiSubmissions);
+    // Don't wait for the promises to resolve to start the countdown
+    Promise.all(submissionPromises).then(aiSubmissions => {
+        const game = games[gameId];
+        if (game) {
+             game.submissions.push(...aiSubmissions);
+             // We don't need to broadcast here as players don't see AI submissions until voting
+        }
+    });
     
     runCountdown(gameId, SUBMISSION_TIME, () => startVotingPhase(gameId));
 }
