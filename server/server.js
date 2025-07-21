@@ -1,4 +1,5 @@
 
+
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -14,7 +15,10 @@ const io = new Server(server, {
     cors: {
         origin: "*", 
         methods: ["GET", "POST"]
-    }
+    },
+    // Add ping/timeout settings to keep connections alive through proxies
+    pingInterval: 20000,
+    pingTimeout: 5000,
 });
 
 const __filename = fileURLToPath(import.meta.url);

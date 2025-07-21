@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { Game } from '../types';
 import TrophyIcon from './icons/TrophyIcon';
@@ -28,7 +29,7 @@ const GameOverDisplay: React.FC<GameOverDisplayProps> = ({ game, onMainMenu }) =
 
     return (
         <div className="w-full max-w-2xl mx-auto p-8 bg-slate-800/80 backdrop-blur-md rounded-xl shadow-2xl border-2 border-yellow-400 text-center relative flex flex-col items-center">
-            <div className="absolute">
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
                  <Confetti active={!!winner} config={config} />
             </div>
 
@@ -58,14 +59,5 @@ const GameOverDisplay: React.FC<GameOverDisplayProps> = ({ game, onMainMenu }) =
         </div>
     );
 };
-
-// Dummy Confetti component if the real one isn't available
-const Confetti: React.FC<{active: boolean, config: any}> = ({ active }) => {
-    // In a real scenario, you'd use a library like 'react-dom-confetti'.
-    // This is a placeholder to avoid breaking the component.
-    if (!active) return null;
-    return <div className="absolute inset-0 pointer-events-none">[Pretend confetti is falling!]</div>;
-};
-
 
 export default GameOverDisplay;
