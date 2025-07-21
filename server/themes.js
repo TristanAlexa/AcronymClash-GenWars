@@ -10,7 +10,7 @@ export const THEMES = {
     "PopCulture",
     "Movies",
     "TV Shows",
-    "Celebrities,"
+    "Celebrities",
     "Video Games",
     "Comics & Superheroes",
   ],
@@ -35,14 +35,14 @@ export const THEMES = {
         "90's kids are better because...",
         "During my EMO phase I...",
         "My fate during WW3",
-        "Being a Millennial is like..."
+        "Being a Millennial is like...",
         "Why does GEN Z...",
     ],
     "Gen X": [
         "My kid just told me...",
         "How I cope with midlife crisis",
         "Back in my day...",
-        "Being a GEN X is like..."
+        "Being a GEN X is like...",
         "Why does GEN Z...",
     ],
     "Boomers": [
