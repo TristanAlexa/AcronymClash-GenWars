@@ -28,9 +28,9 @@ export const disconnect = () => {
     }
 };
 
-export const emit = (event: string, data: any) => {
+export const emit = (event: string, ...args: any[]) => {
     if (socket) {
-        socket.emit(event, data);
+        socket.emit(event, ...args);
     }
 };
 

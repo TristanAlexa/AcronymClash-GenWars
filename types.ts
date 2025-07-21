@@ -1,3 +1,4 @@
+
 export enum Generation {
   GenZ = "Gen Z",
   Millennials = "Millennials",
@@ -5,7 +6,19 @@ export enum Generation {
   Boomers = "Boomers",
 }
 
-export type GamePhase = 'Lobby' | 'GeneratingContent' | 'Submitting' | 'Voting' | 'Results';
+export type LobbyTheme = Generation | 'All Generations';
+
+export type GamePhase = 
+  | 'Lobby' 
+  | 'RoundThemeReveal'   // Display theme for 5s
+  | 'RoundAcronymReveal' // Display acronym for 5s
+  | 'Submitting'         // 45s timer for input
+  | 'Voting'
+  | 'RoundResults'
+  | 'FaceoffSubmitting'
+  | 'FaceoffVoting'
+  | 'FaceoffResults'
+  | 'GameOver';
 
 export type Region = 'Ontario' | 'California' | 'New York' | 'Quebec' | 'Illinois' | 'Georgia';
 
@@ -18,11 +31,12 @@ export interface Player {
   region: Region;
   score: number;
   hasSubmitted: boolean;
+  wins: number;
 }
 
 export interface Submission {
   playerId: string;
-  playerName: string; // Denormalized for easier display
+  playerName:string; // Denormalized for easier display
   backronym: string;
   votes: string[]; // Array of player IDs who voted
 }
@@ -34,14 +48,18 @@ export interface ChatMessage {
 }
 
 export interface Game {
-  id: string;
+  id:string;
   hostId: string;
   players: Player[];
   phase: GamePhase;
+  lobbyType: LobbyTheme;
+  roundNumber: number; // 1, 2, or 3
   acronym: string;
   theme: string;
   submissions: Submission[];
-  difficulty: number;
+  faceoffPlayers: string[];
+  faceoffSubmissions: Submission[];
   roundWinnerId?: string;
+  gameWinnerId?: string;
   countdown: number;
 }

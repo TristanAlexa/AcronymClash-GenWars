@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Player } from '../types';
 import TrophyIcon from './icons/TrophyIcon';
@@ -6,11 +7,11 @@ import UserGroupIcon from './icons/UserGroupIcon';
 interface MainMenuProps {
     onNavigate: (destination: 'profile' | 'leaderboard') => void;
     player: Player;
-    onCreateGame: (isPrivate: boolean) => void;
+    onChooseGameMode: (mode: 'private' | 'public') => void;
     onJoinGame: (gameId: string) => void;
 }
 
-const MainMenu: React.FC<MainMenuProps> = ({ onNavigate, player, onCreateGame, onJoinGame }) => {
+const MainMenu: React.FC<MainMenuProps> = ({ onNavigate, player, onChooseGameMode, onJoinGame }) => {
     const [joinCode, setJoinCode] = useState('');
 
     const handleJoinSubmit = (e: React.FormEvent) => {
@@ -37,7 +38,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onNavigate, player, onCreateGame, o
                     </div>
                     <div className="space-y-3">
                         <button 
-                            onClick={() => onCreateGame(true)}
+                            onClick={() => onChooseGameMode('private')}
                             className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-6 rounded-lg text-xl font-bebas tracking-wider"
                         >
                             Create Private Game
@@ -67,7 +68,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onNavigate, player, onCreateGame, o
                     <h3 className="text-2xl font-bebas text-yellow-400 tracking-wider mb-1">Quick Play</h3>
                     <p className="text-slate-300 mb-4 h-16">Jump into a public game against other players and AI.</p>
                     <button 
-                        onClick={() => onCreateGame(false)} 
+                        onClick={() => onChooseGameMode('public')} 
                         className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-lg text-xl transform hover:scale-105 transition-transform duration-300 ease-in-out focus:outline-none focus:ring-4 focus:ring-green-400 focus:ring-opacity-50 font-bebas tracking-wider"
                     >
                         Find a Game

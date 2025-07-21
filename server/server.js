@@ -1,41 +1,34 @@
 
-
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { THEMES } from './themes.js';
 
 // --- Server and Socket.IO Setup ---
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*", // Allow all origins for simplicity. In production, restrict this to your frontend's URL.
+        origin: "*", 
         methods: ["GET", "POST"]
     }
 });
 
-// --- Path Configuration for ES Modules ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// Navigate up from server/ to the project root to find the 'dist' folder
 const distDir = path.join(__dirname, '..', 'dist');
-
 
 // --- Gemini API Setup ---
 const apiKey = process.env.API_KEY;
 if (!apiKey) {
     console.error("\n!!! API_KEY environment variable not set. !!!");
-    console.error("The server will not be able to generate content for the game.");
-    console.error("Please start the server with 'API_KEY=YOUR_KEY_HERE node server.js'\n");
 }
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 // --- Game State Management ---
-
-// Defining these here to match client-side constants
 const Generation = {
   GenZ: "Gen Z",
   Millennials: "Millennials",
@@ -44,61 +37,56 @@ const Generation = {
 };
 
 const AI_OPPONENTS = [
-  { id: 'ai-genz', name: 'Zoe', generation: Generation.GenZ, isAI: true, region: 'California' },
-  { id: 'ai-millennial', name: 'Mike', generation: Generation.Millennials, isAI: true, region: 'New York' },
-  { id: 'ai-genx', name: 'Xander', generation: Generation.GenX, isAI: true, region: 'Quebec' },
-  { id: 'ai-boomer', name: 'Barbara', generation: Generation.Boomers, isAI: true, region: 'Illinois' },
+  { name: 'Zoe', generation: Generation.GenZ, region: 'California' },
+  { name: 'Mike', generation: Generation.Millennials, region: 'New York' },
+  { name: 'Xander', generation: Generation.GenX, region: 'Quebec' },
+  { name: 'Barbara', generation: Generation.Boomers, region: 'Illinois' },
 ];
 
 const games = {}; // In-memory store for all active games
 
+// Timings
+const LOBBY_START_TIME = 15;
+const THEME_REVEAL_TIME = 5;
+const ACRONYM_REVEAL_TIME = 5;
 const SUBMISSION_TIME = 45;
 const VOTING_TIME = 20;
-const RESULTS_TIME = 10;
+const ROUND_RESULTS_TIME = 8;
+const FACEOFF_SUBMIT_TIME = 30;
+const FACEOFF_VOTE_TIME = 20;
+const FACEOFF_RESULTS_TIME = 5;
+const GAME_OVER_TIME = 10;
 
-// --- Serve Static Files from 'dist' directory ---
 app.use(express.static(distDir));
 
-
-// --- Main Socket.IO Connection Logic ---
 io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
-
-    // Store player data associated with this socket
     socket.data.player = null;
 
-    socket.on('playerLogin', (playerData) => {
+    socket.on('playerLogin', (playerData, callback) => {
         socket.data.player = {
             id: socket.id,
-            name: playerData.name,
-            generation: playerData.generation,
-            region: playerData.region,
+            ...playerData,
             isAI: false,
             score: 0,
             hasSubmitted: false,
+            wins: 0,
         };
         console.log(`Player logged in: ${playerData.name} (${socket.id})`);
+        callback(socket.data.player);
     });
 
-    socket.on('createGame', ({ isPrivate }) => {
-        const gameId = isPrivate ? `PRIVATE-${generateGameCode()}` : `PUBLIC-${generateGameCode()}`;
+    socket.on('createGame', ({ isPrivate, lobbyType }) => {
         const player = socket.data.player;
         if (!player) return;
 
-        games[gameId] = createNewGame(gameId, player.id);
-        const game = games[gameId];
+        const gameId = isPrivate ? `PRIVATE-${generateGameCode()}` : `PUBLIC-${generateGameCode()}`;
+        games[gameId] = createNewGame(gameId, player.id, lobbyType);
         
-        // Add AIs to the game.
-        const aiPlayers = AI_OPPONENTS.map(p => ({
-            ...p,
-            id: `${p.id}-${gameId.substring(gameId.length - 4)}`, // Make AI ID unique per game
-            score: 0,
-            hasSubmitted: false,
-        }));
-        game.players.push(...aiPlayers);
-        
-        // Now have the host join the game.
         joinGame(socket, gameId);
+
+        // Start countdown to begin the game
+        runCountdown(gameId, LOBBY_START_TIME, () => startGame(gameId));
     });
 
     socket.on('joinGame', ({ gameId }) => {
@@ -114,51 +102,13 @@ io.on('connection', (socket) => {
         leaveGame(socket, gameId);
     });
 
-    socket.on('startGame', async ({ gameId, difficulty }) => {
-        const game = games[gameId];
-        if (!game || game.hostId !== socket.id) return;
-
-        game.difficulty = difficulty;
-        game.phase = 'GeneratingContent';
-        broadcastGameState(gameId);
-        
-        // Reset scores for a new game
-        game.players.forEach(p => p.score = 0);
-
-        if (!ai) {
-            console.error("Cannot start game: Gemini AI not initialized.");
-            game.phase = 'Lobby';
-            broadcastGameState(gameId);
-            return;
-        }
-
-        try {
-            const { theme, acronym } = await generateThemeAndAcronym(difficulty, game.usedThemes);
-            game.theme = theme;
-            game.acronym = acronym;
-            game.usedThemes.push(theme); // Add theme to memory for this session
-            
-            await startSubmissionPhase(gameId);
-
-        } catch(error) {
-            console.error("Error generating theme and acronym:", error);
-            game.phase = 'Lobby';
-            broadcastGameState(gameId);
-        }
-    });
-
     socket.on('submitBackronym', ({ gameId, backronym }) => {
         const game = games[gameId];
         const player = game?.players.find(p => p.id === socket.id);
-        if (!player || player.hasSubmitted) return;
+        if (!game || !player || player.hasSubmitted || game.phase !== 'Submitting') return;
 
         player.hasSubmitted = true;
-        game.submissions.push({
-            playerId: player.id,
-            playerName: player.name,
-            backronym,
-            votes: [],
-        });
+        game.submissions.push({ playerId: player.id, playerName: player.name, backronym, votes: [] });
         
         const allHumansSubmitted = game.players.filter(p => !p.isAI).every(p => p.hasSubmitted);
         if (allHumansSubmitted) {
@@ -171,7 +121,8 @@ io.on('connection', (socket) => {
 
     socket.on('castVote', ({ gameId, votedPlayerId }) => {
         const game = games[gameId];
-        const submission = game?.submissions.find(s => s.playerId === votedPlayerId);
+        if (!game || game.phase !== 'Voting') return;
+        const submission = game.submissions.find(s => s.playerId === votedPlayerId);
         const playerHasVoted = game.submissions.some(s => s.votes.includes(socket.id));
         
         if (submission && !playerHasVoted && submission.playerId !== socket.id) {
@@ -179,69 +130,79 @@ io.on('connection', (socket) => {
             broadcastGameState(gameId);
         }
     });
-    
-    socket.on('playAgain', ({gameId}) => {
+
+    socket.on('submitFaceoff', ({ gameId, backronym }) => {
         const game = games[gameId];
-        if (!game || game.hostId !== socket.id) return;
+        const player = game?.players.find(p => p.id === socket.id);
+        if (!game || !player || player.hasSubmitted || game.phase !== 'FaceoffSubmitting' || !game.faceoffPlayers.includes(player.id)) return;
         
-        game.phase = 'Lobby';
-        game.acronym = '';
-        game.theme = '';
-        game.submissions = [];
-        game.roundWinnerId = undefined;
-        game.players.forEach(p => p.hasSubmitted = false);
-        
-        broadcastGameState(gameId);
+        player.hasSubmitted = true;
+        game.faceoffSubmissions.push({ playerId: player.id, playerName: player.name, backronym, votes: [] });
+
+        const allFaceoffPlayersSubmitted = game.faceoffPlayers.every(playerId => game.players.find(p=>p.id === playerId)?.hasSubmitted);
+        if (allFaceoffPlayersSubmitted) {
+            game.timerId && clearTimeout(game.timerId);
+            startFaceoffVotingPhase(gameId);
+        } else {
+            broadcastGameState(gameId);
+        }
     });
 
+    socket.on('castFaceoffVote', ({ gameId, votedPlayerId }) => {
+        const game = games[gameId];
+        if (!game || game.phase !== 'FaceoffVoting') return;
+
+        const submission = game.faceoffSubmissions.find(s => s.playerId === votedPlayerId);
+        const playerIsVoter = !game.faceoffPlayers.includes(socket.id);
+        const playerHasVoted = game.faceoffSubmissions.some(s => s.votes.includes(socket.id));
+
+        if (submission && playerIsVoter && !playerHasVoted) {
+            submission.votes.push(socket.id);
+            broadcastGameState(gameId);
+        }
+    });
+    
     socket.on('disconnect', () => {
         console.log(`Player disconnected: ${socket.id}`);
-        const gameId = Object.keys(games).find(id => games[id].players.some(p => p.id === socket.id));
+        const gameId = Object.keys(games).find(id => games[id]?.players.some(p => p.id === socket.id));
         if (gameId) {
             leaveGame(socket, gameId);
         }
     });
 });
 
-
 // --- Game Logic Functions ---
-
-function createNewGame(gameId, hostId) {
+function createNewGame(gameId, hostId, lobbyType) {
     return {
-        id: gameId,
-        hostId: hostId,
+        id: gameId, hostId, lobbyType,
         players: [],
         phase: 'Lobby',
-        acronym: '',
-        theme: '',
+        roundNumber: 0,
+        acronym: '', theme: '',
         submissions: [],
-        difficulty: 4,
-        roundWinnerId: undefined,
-        countdown: 0,
-        timerId: null,
-        usedThemes: [],
+        faceoffPlayers: [], faceoffSubmissions: [],
+        roundWinnerId: undefined, gameWinnerId: undefined,
+        countdown: 0, timerId: null, usedThemes: [],
     };
 }
 
 function joinGame(socket, gameId) {
     const player = socket.data.player;
-    if (!player) return;
-    
     const game = games[gameId];
-    // Limit of 8 players total (4 human, 4 AI)
+    if (!player || !game) return;
+    
+    if (game.phase !== 'Lobby') {
+        socket.emit('gameInProgress', 'This game has already started.');
+        return;
+    }
     if (game.players.filter(p => !p.isAI).length >= 4 && !game.players.some(p => p.id === player.id)) {
         socket.emit('lobbyFull', 'This lobby is full.');
         return;
     }
 
     socket.join(gameId);
-    // Add player to the game if they are not already in it
     if (!game.players.some(p => p.id === player.id)) {
-        if (player.id === game.hostId) {
-            game.players.unshift(player); // Host always at the top
-        } else {
-            game.players.push(player);
-        }
+        game.players.push(player);
     }
 
     console.log(`${player.name} joined game ${gameId}`);
@@ -261,65 +222,133 @@ function leaveGame(socket, gameId) {
         delete games[gameId];
     } else {
         if (game.hostId === socket.id) {
-            const nextHumanPlayer = game.players.find(p => !p.isAI);
-            game.hostId = nextHumanPlayer ? nextHumanPlayer.id : null;
+            game.hostId = game.players.find(p => !p.isAI)?.id || null;
         }
         broadcastGameState(gameId);
     }
 }
 
-async function startSubmissionPhase(gameId) {
+function startGame(gameId) {
     const game = games[gameId];
-    game.phase = 'Submitting';
+    if (!game) return;
+
+    // Add AIs to fill empty spots
+    const aiCount = 4;
+    const neededAIs = aiCount - game.players.filter(p => p.isAI).length;
+    for (let i = 0; i < neededAIs; i++) {
+        const aiTemplate = AI_OPPONENTS[i % AI_OPPONENTS.length];
+        game.players.push({
+            ...aiTemplate,
+            id: `ai-${i}-${Date.now()}`,
+            isAI: true,
+            score: 0,
+            hasSubmitted: false,
+            wins: 0,
+        });
+    }
+
+    game.players.forEach(p => { p.score = 0; });
+    startRound(gameId);
+}
+
+function generateRandomAcronym(letterCount) {
+    const vowels = 'AEIOU';
+    const consonants = 'BCDFGHJKLMNPQRSTVWXYZ';
+    let acronym = '';
+    // A simple approach for somewhat pronounceable-looking acronyms
+    // Stagger vowels and consonants
+    let lastType = Math.random() > 0.5 ? 'vowel' : 'consonant';
+    for (let i = 0; i < letterCount; i++) {
+        if (lastType === 'vowel') {
+            acronym += consonants.charAt(Math.floor(Math.random() * consonants.length));
+            lastType = 'consonant';
+        } else {
+            acronym += vowels.charAt(Math.floor(Math.random() * vowels.length));
+            lastType = 'vowel';
+        }
+    }
+    return acronym;
+}
+
+function startRound(gameId) {
+    const game = games[gameId];
+    if (!game) return;
+    
+    game.roundNumber++;
+    game.phase = 'RoundThemeReveal';
     game.submissions = [];
+    game.roundWinnerId = undefined;
     game.players.forEach(p => p.hasSubmitted = false);
 
-    // --- Generate AI submissions ---
+    // --- New Theme and Acronym Logic ---
+    const letterCount = game.roundNumber + 3; // R1=4, R2=5, R3=6
+    
+    // Select theme from hard-coded list
+    const availableThemes = THEMES.general.filter(t => !game.usedThemes.includes(t));
+    if (availableThemes.length === 0 && THEMES.general.length > 0) {
+        // If we ran out of unique themes, reset the used list for this game and start over
+        game.usedThemes = [];
+        availableThemes.push(...THEMES.general);
+    }
+    game.theme = availableThemes.length > 0
+        ? availableThemes[Math.floor(Math.random() * availableThemes.length)]
+        : "Freestyle Frenzy"; // Fallback if no themes are defined in themes.js
+    game.usedThemes.push(game.theme);
+
+    // Generate acronym locally
+    game.acronym = generateRandomAcronym(letterCount);
+    
+    broadcastGameState(gameId);
+    runCountdown(gameId, THEME_REVEAL_TIME, () => startAcronymReveal(gameId));
+}
+
+function startAcronymReveal(gameId) {
+    const game = games[gameId];
+    if (!game) return;
+    game.phase = 'RoundAcronymReveal';
+    runCountdown(gameId, ACRONYM_REVEAL_TIME, () => startSubmissionPhase(gameId));
+}
+
+async function startSubmissionPhase(gameId) {
+    const game = games[gameId];
+    if (!game) return;
+    game.phase = 'Submitting';
+
+    // Generate AI submissions in the background
     const aiPlayers = game.players.filter(p => p.isAI);
     const submissionPromises = aiPlayers.map(aiPlayer => 
-        generateAiBackronym(game.acronym, game.theme, aiPlayer).then(backronym => ({
-            playerId: aiPlayer.id,
-            playerName: aiPlayer.name,
-            backronym: backronym,
-            votes: [],
-        }))
+        generateAiBackronym(game.acronym, game.theme, aiPlayer).then(backronym => {
+            aiPlayer.hasSubmitted = true;
+            return { playerId: aiPlayer.id, playerName: aiPlayer.name, backronym, votes: [] };
+        })
     );
-    
     const aiSubmissions = await Promise.all(submissionPromises);
-
     game.submissions.push(...aiSubmissions);
-    game.players.forEach(p => {
-        if (p.isAI) { p.hasSubmitted = true; }
-    });
-    // --- End AI submission generation ---
     
     runCountdown(gameId, SUBMISSION_TIME, () => startVotingPhase(gameId));
 }
 
 function startVotingPhase(gameId) {
     const game = games[gameId];
-    if (game.phase === 'Voting') return;
+    if (!game || game.phase === 'Voting') return;
     
+    game.phase = 'Voting';
+    // Add placeholders for players who didn't submit
     game.players.forEach(p => {
         if (!game.submissions.some(s => s.playerId === p.id)) {
-            game.submissions.push({
-                playerId: p.id,
-                playerName: p.name,
-                backronym: "Didn't submit in time!",
-                votes: [],
-            });
+            game.submissions.push({ playerId: p.id, playerName: p.name, backronym: "Didn't submit in time!", votes: [] });
         }
     });
 
-    game.phase = 'Voting';
-    runCountdown(gameId, VOTING_TIME, () => startResultsPhase(gameId));
+    runCountdown(gameId, VOTING_TIME, () => startRoundResultsPhase(gameId));
 }
 
-function startResultsPhase(gameId) {
+function startRoundResultsPhase(gameId) {
     const game = games[gameId];
     if (!game) return;
-    game.phase = 'Results';
+    game.phase = 'RoundResults';
 
+    // Calculate scores
     let roundWinner = { playerId: null, maxVotes: -1 };
     game.submissions.forEach(sub => {
         const points = sub.votes.length * 100;
@@ -340,15 +369,106 @@ function startResultsPhase(gameId) {
         }
     }
     
-    runCountdown(gameId, RESULTS_TIME, () => {
-        game.phase = 'Lobby';
-        game.roundWinnerId = undefined;
-        game.submissions = [];
-        game.players.forEach(p => p.hasSubmitted = false);
-        broadcastGameState(gameId);
-    });
+    const nextStep = game.roundNumber < 3 ? () => startRound(gameId) : () => startFaceoff(gameId);
+    runCountdown(gameId, ROUND_RESULTS_TIME, nextStep);
 }
 
+function startFaceoff(gameId) {
+    const game = games[gameId];
+    if (!game) return;
+
+    game.players.forEach(p => p.hasSubmitted = false);
+
+    // Determine faceoff players
+    const sortedPlayers = [...game.players].sort((a,b) => b.score - a.score);
+    if (sortedPlayers.length < 2) {
+        // Not enough players, go to game over
+        game.gameWinnerId = sortedPlayers[0]?.id;
+        startGameOverPhase(gameId);
+        return;
+    }
+    
+    const faceoffPlayers = [sortedPlayers[0].id, sortedPlayers[1].id];
+    // Handle ties for 2nd place
+    const secondPlaceScore = sortedPlayers[1].score;
+    for (let i = 2; i < sortedPlayers.length; i++) {
+        if (sortedPlayers[i].score === secondPlaceScore) {
+            faceoffPlayers.push(sortedPlayers[i].id);
+        } else {
+            break;
+        }
+    }
+    game.faceoffPlayers = faceoffPlayers;
+
+    // --- New Faceoff Theme and Acronym Logic ---
+    let faceoffThemePool = [];
+    if (game.lobbyType === 'All Generations') {
+        // Pool all faceoff themes together
+        faceoffThemePool = Object.values(THEMES.faceoff).flat();
+    } else if (THEMES.faceoff[game.lobbyType]) {
+        // Use the specific generation's themes
+        faceoffThemePool = THEMES.faceoff[game.lobbyType];
+    }
+
+    game.theme = faceoffThemePool.length > 0
+        ? faceoffThemePool[Math.floor(Math.random() * faceoffThemePool.length)]
+        : "The Final Showdown"; // Fallback theme if none are defined
+
+    // Generate a new, harder 6-letter acronym for the finale
+    game.acronym = generateRandomAcronym(6);
+    // --- End New Logic ---
+
+    game.phase = 'FaceoffSubmitting';
+    runCountdown(gameId, FACEOFF_SUBMIT_TIME, () => startFaceoffVotingPhase(gameId));
+}
+
+function startFaceoffVotingPhase(gameId) {
+    const game = games[gameId];
+    if (!game) return;
+    
+    // Add placeholders for finalists who didn't submit
+    game.faceoffPlayers.forEach(playerId => {
+        if (!game.faceoffSubmissions.some(s => s.playerId === playerId)) {
+            const player = game.players.find(p => p.id === playerId);
+            game.faceoffSubmissions.push({ playerId: player.id, playerName: player.name, backronym: "Ran out of time!", votes: [] });
+        }
+    });
+
+    game.phase = 'FaceoffVoting';
+    runCountdown(gameId, FACEOFF_VOTE_TIME, () => startFaceoffResultsPhase(gameId));
+}
+
+function startFaceoffResultsPhase(gameId) {
+    const game = games[gameId];
+    if (!game) return;
+    game.phase = 'FaceoffResults';
+
+    const winnerSubmission = game.faceoffSubmissions.sort((a,b) => b.votes.length - a.votes.length)[0];
+    if (winnerSubmission) {
+        game.gameWinnerId = winnerSubmission.playerId;
+        const winnerPlayer = game.players.find(p => p.id === game.gameWinnerId);
+        if (winnerPlayer) {
+            winnerPlayer.wins += 1; // Increment win count
+        }
+    } else {
+        game.gameWinnerId = game.faceoffPlayers[0] || null; // Fallback winner
+    }
+    
+    runCountdown(gameId, FACEOFF_RESULTS_TIME, () => startGameOverPhase(gameId));
+}
+
+function startGameOverPhase(gameId) {
+    const game = games[gameId];
+    if (!game) return;
+    game.phase = 'GameOver';
+    runCountdown(gameId, GAME_OVER_TIME, () => {
+        // Clean up game after a delay
+        if (games[gameId]) {
+            game.timerId && clearTimeout(game.timerId);
+            delete games[gameId];
+        }
+    });
+}
 
 function runCountdown(gameId, duration, onComplete) {
     const game = games[gameId];
@@ -358,157 +478,55 @@ function runCountdown(gameId, duration, onComplete) {
     game.countdown = duration;
 
     const tick = () => {
-        if (games[gameId]) { // Ensure game hasn't been deleted
-            broadcastGameState(gameId);
-            game.countdown--;
+        if (!games[gameId]) return; // Game was deleted
+        broadcastGameState(gameId);
+        game.countdown--;
 
-            if (game.countdown >= 0) {
-                game.timerId = setTimeout(tick, 1000);
-            } else {
-                onComplete();
-            }
+        if (game.countdown >= 0) {
+            game.timerId = setTimeout(tick, 1000);
+        } else {
+            onComplete();
         }
     };
     tick();
 }
 
-
 function broadcastGameState(gameId) {
     const game = games[gameId];
     if (game) {
-        const { timerId, ...gameState } = game;
+        // Exclude server-side timerId from the payload
+        const { timerId, usedThemes, ...gameState } = game;
         io.to(gameId).emit('gameStateUpdate', gameState);
     }
 }
-
-// --- Helper Functions ---
 
 function generateGameCode() {
     return Math.random().toString(36).substring(2, 7).toUpperCase();
 }
 
-
 // --- Gemini API Functions ---
-
-async function generateThemeAndAcronym(letterCount, usedThemes = []) {
-    if (!ai) {
-        console.warn("AI not initialized, returning mock theme/acronym.");
-        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        let acronym = '';
-        for (let i = 0; i < letterCount; i++) {
-            acronym += letters.charAt(Math.floor(Math.random() * letters.length));
-        }
-        return { theme: "Awkward First Dates", acronym };
-    }
-    
-    const usedThemesString = usedThemes.length > 0 ? `Previously used themes (do not repeat these or similar ideas): [${usedThemes.join(', ')}]` : "This is the first round, no themes used yet.";
-
-    const prompt = `Your task is to generate content for a word game.
-
-1.  **A theme:** This theme must be a funny, relatable situation or trope.
-    -   **Constraint 1:** The theme MUST be short and concise, between 3 and 6 words exactly. Do NOT use more than 6 words.
-    -   **Constraint 2:** The theme MUST be unique and not similar to themes already used in this game.
-    -   ${usedThemesString}
-
-2.  **An acronym:** A single ${letterCount}-letter non-existing acronym. The letters should be varied with consonans and vowels. (e.g., not 'AAA' or 'QQQQ' or 'QXZWY').
-
-**Examples of a good themes to use:** "Awkward First Dates", "How'd Santa fit in the chimney?", "Why my partner is angry", "Why I'll never be rich"
-**Example of a bad themes to NEVER use:** "Thinking about things you would find at a thrift shop"
-
-Respond ONLY with the JSON object that matches the requested schema.`;
-
-    const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    theme: {
-                        type: Type.STRING,
-                        description: "A funny, relatable theme, situation, or trope. MUST be between 3 and 6 words. MUST be unique and not similar to themes already used."
-                    },
-                    acronym: {
-                        type: Type.STRING,
-                        description: `A single ${letterCount}-letter non-existing acronym. The letters generated MUST NOT be the same 3, 4, or 5 letters in a row.`
-                    }
-                },
-                required: ["theme", "acronym"]
-            }
-        },
-    });
-
-    try {
-        const parsedData = JSON.parse(response.text);
-        if (parsedData.theme && parsedData.acronym) {
-            let acronym = parsedData.acronym.toUpperCase().replace(/[^A-Z]/g, '');
-            if (acronym.length !== letterCount) {
-                console.warn(`AI generated acronym '${acronym}' has wrong length. Expected ${letterCount}. Using fallback.`);
-                const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-                let fallbackAcronym = '';
-                for (let i = 0; i < letterCount; i++) {
-                    fallbackAcronym += letters.charAt(Math.floor(Math.random() * letters.length));
-                }
-                acronym = fallbackAcronym;
-            }
-            return { theme: parsedData.theme, acronym };
-        } else {
-             throw new Error("Parsed data from Gemini is missing theme or acronym.");
-        }
-    } catch(e) {
-        console.error("Failed to parse or process theme from Gemini response:", e, `Response text: ${response.text}`);
-        throw new Error("Failed to get valid theme/acronym from AI.");
-    }
-}
-
 async function generateAiBackronym(acronym, theme, player) {
-    if (!ai) {
-        console.warn("AI not initialized, returning mock backronym.");
-        return `Mock backronym for ${acronym}`;
-    }
+    if (!ai) return `Mock backronym for ${acronym}`;
 
-    const prompt = `You are a game AI. Your name is ${player.name} and you are from the ${player.generation} generation.
-The game is Acronym Clash. The theme for this round is "${theme}".
-Your task is to create a witty, funny, or clever backronym for the acronym: ${acronym}.
-
-A backronym is a phrase where the first letter of each word spells out the acronym.
-The backronym must match your generation's slang, perspective, and sense of humor. Be creative and concise. Keep it under 100 characters.
-
-Respond with ONLY the backronym phrase itself. Do not include any other text, quotation marks, or explanations.
-
-Example for acronym "IDK": I Dominate Kids.
-
-Your witty backronym:`;
+    const prompt = `You are a game AI named ${player.name}, part of the ${player.generation} generation.
+The theme is "${theme}". Create a witty backronym for: ${acronym}.
+A backronym is a phrase where the first letter of each word spells the acronym.
+The phrase must match your generation's slang and humor. Be creative and concise (under 100 chars).
+Respond ONLY with the backronym phrase. No quotes.`;
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                temperature: 0.95,
-                topP: 0.95,
-                maxOutputTokens: 50,
-                thinkingConfig: { thinkingBudget: 0 }
-            },
+            model: "gemini-2.5-flash", contents: prompt,
+            config: { temperature: 1, topP: 0.95, maxOutputTokens: 50, thinkingConfig: { thinkingBudget: 0 } },
         });
-        
-        const backronym = response.text.trim().replace(/"/g, '');
-        return backronym || "I'm drawing a blank...";
-    } catch (error) {
-        console.error(`Error generating backronym for AI ${player.name}:`, error);
-        return "I'm having a brain freeze!"; // Fallback response
+        return response.text.trim().replace(/"/g, '') || "I'm drawing a blank...";
+    } catch(error) {
+        console.error(`Error generating AI backronym for ${player.name}:`, error);
+        return "I'm drawing a blank...";
     }
 }
 
-// --- Catchall route to serve the frontend's index.html ---
-app.get('*', (req, res) => {
-    res.sendFile(path.join(distDir, 'index.html'));
-});
+app.get('*', (req, res) => res.sendFile(path.join(distDir, 'index.html')));
 
-
-// --- Server Start ---
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-    console.log(`Server listening on port ${PORT}`);
-});
+server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));

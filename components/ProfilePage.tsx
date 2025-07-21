@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Player } from '../types';
 import { GENERATION_COLORS } from '../constants';
@@ -14,7 +15,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ player, onBack }) => {
         highScore: Math.max(12500, player.score + (Math.floor(Math.random() * 5000))),
         avgLast10: Math.floor(Math.random() * (9000 - 4000) + 4000),
         gamesPlayed: Math.floor(Math.random() * (200 - 20) + 20),
-        wins: Math.floor(Math.random() * 30),
     };
 
     return (
@@ -49,7 +49,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ player, onBack }) => {
                     </div>
                      <div className="bg-slate-900/50 p-4 rounded-lg">
                         <p className="text-slate-400 text-sm uppercase font-semibold">Total Wins</p>
-                        <p className="text-3xl font-bold text-white flex items-center justify-center gap-2">{mockStats.wins} <TrophyIcon className="w-6 h-6 text-yellow-500" /></p>
+                        <p className="text-3xl font-bold text-white flex items-center justify-center gap-2">{player.wins} <TrophyIcon className="w-6 h-6 text-yellow-500" /></p>
                     </div>
                 </div>
             </div>

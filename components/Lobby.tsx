@@ -1,25 +1,24 @@
+
 import React from 'react';
 import { Game } from '../types';
 import { GENERATION_COLORS } from '../constants';
-import GameSetup from './GameSetup';
 import Spinner from './Spinner';
 
 interface LobbyProps {
     game: Game;
     currentPlayerId: string;
-    onStartGame: (difficulty: number) => void;
     onLeaveLobby: () => void;
 }
 
-const Lobby: React.FC<LobbyProps> = ({ game, currentPlayerId, onStartGame, onLeaveLobby }) => {
+const Lobby: React.FC<LobbyProps> = ({ game, currentPlayerId, onLeaveLobby }) => {
     
-    const isHost = game.hostId === currentPlayerId;
     const players = game.players;
+    const isPrivate = game.id.startsWith('PRIVATE-');
 
     return (
         <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 bg-slate-800/80 backdrop-blur-md rounded-xl shadow-2xl border border-slate-700">
             <h2 className="text-3xl font-bold text-center text-yellow-400 font-bebas tracking-wider mb-2">Game Lobby</h2>
-             {game.id.startsWith('PRIVATE-') && (
+             {isPrivate && (
                 <div className="text-center mb-4">
                     <p className="text-slate-300">Share this code with your friends!</p>
                     <div className="inline-block bg-slate-900/70 p-2 mt-1 rounded-lg">
@@ -41,18 +40,19 @@ const Lobby: React.FC<LobbyProps> = ({ game, currentPlayerId, onStartGame, onLea
                                 </div>
                             </div>
                         ))}
+                         {[...Array(Math.max(0, 8 - players.length))].map((_, i) => (
+                            <div key={`empty-${i}`} className="p-3 rounded-lg bg-slate-800/40 text-center text-slate-400 italic">
+                                Waiting for player...
+                            </div>
+                        ))}
                     </div>
                 </div>
 
-                {/* Main Area: Settings */}
-                <div className="md:w-2/3 flex flex-col justify-between">
-                     {isHost ? (
-                        <GameSetup onStart={onStartGame} initialDifficulty={game.difficulty} />
-                     ) : (
-                        <div className="h-full flex flex-col items-center justify-center p-8 bg-slate-800/80 rounded-xl border border-slate-700">
-                            <Spinner message="Waiting for the host to start the game..."/>
-                        </div>
-                     )}
+                {/* Main Area: Countdown */}
+                <div className="md:w-2/3 flex flex-col items-center justify-center p-8 bg-slate-800/80 rounded-xl border border-slate-700">
+                    <p className="font-bebas text-3xl text-slate-300">Game starting in</p>
+                    <p className="font-anton text-8xl text-yellow-400">{game.countdown}</p>
+                    <Spinner message="Waiting for more players..."/>
                 </div>
             </div>
 

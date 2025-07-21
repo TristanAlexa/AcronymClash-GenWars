@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Generation } from '../types';
+import { Generation, Player } from '../types';
 import { GENERATION_COLORS } from '../constants';
 
 interface LoginScreenProps {
