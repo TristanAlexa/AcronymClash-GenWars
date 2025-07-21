@@ -11,7 +11,7 @@ export const THEMES = {
     "Movies",
     "TV Shows",
     "Celebrities,"
-    "Video Games,"
+    "Video Games",
     "Comics & Superheroes",
   ],
 
