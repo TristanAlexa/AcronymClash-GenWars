@@ -2,6 +2,7 @@
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
+import cors from 'cors';
 import { GoogleGenAI } from '@google/genai';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -9,6 +10,7 @@ import { THEMES } from './themes.js';
 
 // --- Server and Socket.IO Setup ---
 const app = express();
+app.use(cors()); // Enable CORS for all routes
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
@@ -56,7 +58,7 @@ const AI_OPPONENTS = [
 const games = {}; // In-memory store for all active games
 
 // Timings
-const LOBBY_START_TIME = 15;
+const LOBBY_START_TIME = 10;
 const THEME_REVEAL_TIME = 5;
 const ACRONYM_REVEAL_TIME = 5;
 const SUBMISSION_TIME = 45;
@@ -64,7 +66,7 @@ const VOTING_TIME = 20;
 const ROUND_RESULTS_TIME = 8;
 const FACEOFF_SUBMIT_TIME = 30;
 const FACEOFF_VOTE_TIME = 20;
-const FACEOFF_RESULTS_TIME = 5;
+const FACEOFF_RESULTS_TIME = 8;
 const GAME_OVER_TIME = 10;
 const LOBBY_SIZE = 10;
 
