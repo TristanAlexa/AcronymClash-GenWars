@@ -67,7 +67,6 @@ const ROUND_RESULTS_TIME = 8;
 const FACEOFF_SUBMIT_TIME = 30;
 const FACEOFF_VOTE_TIME = 20;
 const FACEOFF_RESULTS_TIME = 8;
-const GAME_OVER_TIME = 10;
 const LOBBY_SIZE = 10;
 
 app.use(express.static(distDir));
@@ -301,7 +300,7 @@ function startRound(gameId) {
     game.players.forEach(p => p.hasSubmitted = false);
 
     // --- New Theme and Acronym Logic ---
-    const letterCount = game.roundNumber + 3; // R1=4, R2=5, R3=6
+    const letterCount = game.roundNumber + 2; // R1=3, R2=4, R3=5
     
     // Select theme from hard-coded list
     const availableThemes = THEMES.general.filter(t => !game.usedThemes.includes(t));
@@ -440,9 +439,30 @@ function startFaceoff(gameId) {
         ? faceoffThemePool[Math.floor(Math.random() * faceoffThemePool.length)]
         : "The Final Showdown"; // Fallback theme if none are defined
 
-    // Generate a new, harder 6-letter acronym for the finale
-    game.acronym = generateRandomAcronym(6);
-    // --- End New Logic ---
+    // Generate a new 5-letter acronym for the finale
+    game.acronym = generateRandomAcronym(5);
+    
+    // --- AI Faceoff Submission Logic ---
+    const aiFaceoffPlayers = game.players.filter(p => p.isAI && game.faceoffPlayers.includes(p.id));
+    const faceoffSubmissionPromises = aiFaceoffPlayers.map(aiPlayer =>
+        generateAiBackronym(game.acronym, game.theme, aiPlayer).then(backronym => {
+            aiPlayer.hasSubmitted = true;
+            return { playerId: aiPlayer.id, playerName: aiPlayer.name, backronym, votes: [] };
+        })
+    );
+
+    Promise.all(faceoffSubmissionPromises).then(aiSubmissions => {
+        const game = games[gameId];
+        if (game) {
+            game.faceoffSubmissions.push(...aiSubmissions);
+            // Check if all faceoff players (human and AI) have submitted
+             const allFaceoffPlayersSubmitted = game.faceoffPlayers.every(playerId => game.players.find(p=>p.id === playerId)?.hasSubmitted);
+             if (allFaceoffPlayersSubmitted) {
+                game.timerId && clearTimeout(game.timerId);
+                startFaceoffVotingPhase(gameId); // Move to next phase immediately
+             }
+        }
+    });
 
     game.phase = 'FaceoffSubmitting';
     runCountdown(gameId, FACEOFF_SUBMIT_TIME, () => startFaceoffVotingPhase(gameId));
@@ -487,13 +507,9 @@ function startGameOverPhase(gameId) {
     const game = games[gameId];
     if (!game) return;
     game.phase = 'GameOver';
-    runCountdown(gameId, GAME_OVER_TIME, () => {
-        // Clean up game after a delay
-        if (games[gameId]) {
-            game.timerId && clearTimeout(game.timerId);
-            delete games[gameId];
-        }
-    });
+    // Remove countdown logic. The game will persist until all players leave.
+    // The leaveGame logic will handle cleanup when the last human disconnects.
+    broadcastGameState(gameId);
 }
 
 function runCountdown(gameId, duration, onComplete) {

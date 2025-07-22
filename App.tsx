@@ -169,7 +169,7 @@ const App: React.FC = () => {
                             onFaceoffVote={handleFaceoffVote}
                         />;
             case 'GameOver':
-                return <GameOverDisplay game={game} onMainMenu={() => setView('menu')} />;
+                return <GameOverDisplay game={game} onMainMenu={handleLeaveGame} />;
             default:
                 return <p>An unknown game state occurred.</p>;
         }
@@ -213,7 +213,7 @@ const App: React.FC = () => {
 
     return (
         <div className="min-h-screen text-white flex flex-col items-center justify-center p-4 selection:bg-yellow-400 selection:text-black relative overflow-x-hidden">
-             <div className="absolute inset-0 bg-[#3a3a3a]" style={{ backgroundImage: `url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAAAXNSR0IArs4c6QAAARlJREFUaAXt1EEOhDAIRFGn8f+P3t0VpYJIdYmKqL9x594pENsNYgJgACu2Yg9gALf8fCxgAAeY9jvAARa0hglQkQYJECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVigQsGkeAIECVigQsGkeAIECVigQsGkeAIECVigQsGkeAIECVigQv4BsMWfI1+Dc2zAAAAAElFTkSuQmCC')`}}></div>
+             <div className="absolute inset-0 bg-[#3a3a3a]" style={{ backgroundImage: `url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAAAXNSR0IArs4c6QAAARlJREFUaAXt1EEOhDAIRFGn8f+P3t0VpYJIdYmKqL9x594pENsNYgJgACu2Yg9gALf8fCxgAAeY9jvAARa0hglQkQYJECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVigQsGkeAIECVigQsGkeAIECVigQv4BsMWfI1+Dc2zAAAAAElFTkSuQmCC')`}}></div>
              <div className="absolute top-0 h-full w-full bg-slate-800/80 backdrop-blur-sm"></div>
 
             <div className="relative z-10 w-full flex flex-col items-center flex-grow justify-center">
