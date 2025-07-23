@@ -1,5 +1,6 @@
 
 
+
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -193,6 +194,7 @@ io.on('connection', (socket) => {
         if (submission && !playerHasVoted && submission.playerId !== socket.id) {
             submission.votes.push(socket.id);
             broadcastGameState(gameId);
+            checkAndAdvanceVoting(gameId);
         }
     });
 
@@ -224,6 +226,7 @@ io.on('connection', (socket) => {
         if (submission && playerIsVoter && !playerHasVoted) {
             submission.votes.push(socket.id);
             broadcastGameState(gameId);
+            checkAndAdvanceVoting(gameId);
         }
     });
     
@@ -419,6 +422,16 @@ function startVotingPhase(gameId) {
             game.submissions.push({ playerId: p.id, playerName: p.name, backronym: "Didn't submit in time!", votes: [] });
         }
     });
+    
+    // Trigger AI votes
+    const aiPlayers = game.players.filter(p => p.isAI);
+    aiPlayers.forEach(aiPlayer => {
+        // Stagger AI votes
+        const voteDelay = (Math.random() * 10 + 3) * 1000; // 3 to 13 seconds
+        setTimeout(() => {
+            castAiVote(gameId, aiPlayer.id);
+        }, voteDelay);
+    });
 
     runCountdown(gameId, VOTING_TIME, () => startRoundResultsPhase(gameId));
 }
@@ -525,17 +538,29 @@ function startFaceoff(gameId) {
 
 function startFaceoffVotingPhase(gameId) {
     const game = games[gameId];
-    if (!game) return;
+    if (!game || game.phase === 'FaceoffVoting') return;
     
     // Add placeholders for finalists who didn't submit
     game.faceoffPlayers.forEach(playerId => {
         if (!game.faceoffSubmissions.some(s => s.playerId === playerId)) {
             const player = game.players.find(p => p.id === playerId);
-            game.faceoffSubmissions.push({ playerId: player.id, playerName: player.name, backronym: "Ran out of time!", votes: [] });
+            if (player) {
+                game.faceoffSubmissions.push({ playerId: player.id, playerName: player.name, backronym: "Ran out of time!", votes: [] });
+            }
         }
     });
 
     game.phase = 'FaceoffVoting';
+    
+    // Trigger AI votes from non-finalists
+    const aiVoters = game.players.filter(p => p.isAI && !game.faceoffPlayers.includes(p.id));
+    aiVoters.forEach(aiPlayer => {
+        const voteDelay = (Math.random() * 10 + 3) * 1000; // 3 to 13 seconds
+        setTimeout(() => {
+            castAiVote(gameId, aiPlayer.id);
+        }, voteDelay);
+    });
+    
     runCountdown(gameId, FACEOFF_VOTE_TIME, () => startFaceoffResultsPhase(gameId));
 }
 
@@ -575,7 +600,10 @@ function runCountdown(gameId, duration, onComplete) {
     game.countdown = duration;
 
     const tick = () => {
-        if (!games[gameId]) return; // Game was deleted
+        if (!games[gameId]) {
+            if(game.timerId) clearTimeout(game.timerId);
+            return;
+        };
         broadcastGameState(gameId);
         game.countdown--;
 
@@ -601,15 +629,116 @@ function generateGameCode() {
     return Math.random().toString(36).substring(2, 7).toUpperCase();
 }
 
-// --- Gemini API Functions ---
+// --- New and Updated AI Functions ---
+
+/**
+ * Checks if all eligible players have voted and advances the game phase if so.
+ */
+function checkAndAdvanceVoting(gameId) {
+    const game = games[gameId];
+    if (!game || game.phase.indexOf('Voting') === -1) return;
+
+    let submissions, eligibleVoters, nextPhaseFn;
+
+    if (game.phase === 'Voting') {
+        submissions = game.submissions;
+        eligibleVoters = game.players; // Everyone votes in normal rounds
+        nextPhaseFn = () => startRoundResultsPhase(gameId);
+    } else { // FaceoffVoting
+        submissions = game.faceoffSubmissions;
+        // Only non-finalists vote in faceoff
+        eligibleVoters = game.players.filter(p => !game.faceoffPlayers.includes(p.id));
+        nextPhaseFn = () => startFaceoffResultsPhase(gameId);
+    }
+
+    if (eligibleVoters.length === 0) {
+         game.timerId && clearTimeout(game.timerId);
+         setTimeout(nextPhaseFn, 500); // Advance if no one is eligible to vote
+         return;
+    }
+
+    const votersWhoVoted = submissions.flatMap(s => s.votes);
+    const uniqueVoters = new Set(votersWhoVoted);
+
+    // If the number of unique voters equals the number of eligible voters, advance.
+    if (uniqueVoters.size >= eligibleVoters.length) {
+        console.log(`All ${eligibleVoters.length} players have voted in game ${gameId}. Advancing phase.`);
+        game.timerId && clearTimeout(game.timerId);
+        // Add a small delay so the last vote can be seen on the UI
+        setTimeout(nextPhaseFn, 500);
+    }
+}
+
+
+/**
+ * Simulates an AI player casting a vote based on its persona.
+ */
+async function castAiVote(gameId, aiPlayerId) {
+    const game = games[gameId];
+    if (!game || !ai || (game.phase !== 'Voting' && game.phase !== 'FaceoffVoting')) return;
+    
+    const aiPlayer = game.players.find(p => p.id === aiPlayerId);
+    if (!aiPlayer) return;
+
+    const submissions = game.phase === 'Voting' ? game.submissions : game.faceoffSubmissions;
+
+    // Check if AI already voted
+    const playerHasVoted = submissions.some(s => s.votes.includes(aiPlayer.id));
+    if (playerHasVoted) return;
+
+    const voteableSubmissions = submissions.filter(s => s.playerId !== aiPlayer.id);
+    if (voteableSubmissions.length === 0) return;
+
+    const submissionsString = voteableSubmissions.map(s => `${s.playerId}: "${s.backronym}"`).join('\n');
+    const prompt = `You are the game AI ${aiPlayer.name}, a ${aiPlayer.generation}. The theme was "${game.theme}".
+You must vote for one of the following backronyms for "${game.acronym}".
+Pick the one that is the most clever, funny, or impressive from your perspective.
+${submissionsString}
+Respond ONLY with the player ID of your choice (e.g., the part before the colon). Do not add any other text or explanation.`;
+
+    let votedPlayerId;
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash", 
+            contents: prompt,
+            config: { temperature: 0.9, maxOutputTokens: 30, thinkingConfig: { thinkingBudget: 0 } },
+        });
+        votedPlayerId = response.text.trim();
+    } catch (error) {
+        console.error(`Error getting AI vote for ${aiPlayer.name}:`, error);
+        // Fallback to random if API fails
+        votedPlayerId = voteableSubmissions[Math.floor(Math.random() * voteableSubmissions.length)].playerId;
+    }
+    
+    const targetSubmission = submissions.find(s => s.playerId === votedPlayerId);
+
+    if (targetSubmission && targetSubmission.playerId !== aiPlayer.id) {
+        console.log(`AI ${aiPlayer.name} voted for ${targetSubmission.playerName} (${targetSubmission.playerId})`);
+        targetSubmission.votes.push(aiPlayer.id);
+        broadcastGameState(gameId);
+        checkAndAdvanceVoting(gameId);
+    } else {
+        // Fallback to random vote if AI hallucinates an ID or fails to choose
+        console.log(`AI ${aiPlayer.name} provided an invalid vote ("${votedPlayerId}"), voting randomly.`);
+        const randomSubmission = voteableSubmissions[Math.floor(Math.random() * voteableSubmissions.length)];
+        randomSubmission.votes.push(aiPlayer.id);
+        broadcastGameState(gameId);
+        checkAndAdvanceVoting(gameId);
+    }
+}
+
+/**
+ * Generates a backronym for an AI player, with an improved prompt focusing on theme.
+ */
 async function generateAiBackronym(acronym, theme, player) {
     if (!ai) return `Mock backronym for ${acronym}`;
 
-    const prompt = `You are a game AI named ${player.name}, part of the ${player.generation} generation.
-The theme is "${theme}". Create a witty backronym for: ${acronym}.
-A backronym is a phrase where the first letter of each word spells the acronym.
-The phrase must match your generation's slang and humor. Be creative and concise (under 100 chars).
-Respond ONLY with the backronym phrase. No quotes.`;
+    const prompt = `You are a game AI named ${player.name}, representing the ${player.generation} generation.
+Your highest priority is to create a witty and creative backronym for the acronym: ${acronym}.
+The backronym MUST strictly follow the theme: "${theme}".
+While you can add a touch of your generation's humor, it must be relevant to the theme.
+Keep it concise (under 100 characters).
+Respond ONLY with the backronym phrase itself. Do not use quotes or any other text.`;
 
     try {
         const response = await ai.models.generateContent({
