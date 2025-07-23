@@ -297,24 +297,28 @@ function startGame(gameId) {
     const game = games[gameId];
     if (!game || game.phase !== 'Lobby') return;
 
-    // Fill remaining lobby spots with AI up to the max size
-    const neededAIs = Math.max(0, LOBBY_SIZE - game.players.length);
-    
-    const availableAIs = AI_OPPONENTS.filter(aiTemplate => 
-        !game.players.some(p => p.name === aiTemplate.name && p.isAI)
-    );
+    const isPublicGame = game.id.startsWith('PUBLIC-');
 
-    for (let i = 0; i < neededAIs && i < availableAIs.length; i++) {
-        const aiTemplate = availableAIs[i];
+    // Only fill lobby with AI for public games
+    if (isPublicGame) {
+        const neededAIs = Math.max(0, LOBBY_SIZE - game.players.length);
         
-        game.players.push({
-            ...aiTemplate,
-            id: `ai-${aiTemplate.name.toLowerCase()}-${Date.now()}`,
-            isAI: true,
-            score: 0,
-            hasSubmitted: false,
-            wins: 0,
-        });
+        const availableAIs = AI_OPPONENTS.filter(aiTemplate => 
+            !game.players.some(p => p.name === aiTemplate.name && p.isAI)
+        );
+
+        for (let i = 0; i < neededAIs && i < availableAIs.length; i++) {
+            const aiTemplate = availableAIs[i];
+            
+            game.players.push({
+                ...aiTemplate,
+                id: `ai-${aiTemplate.name.toLowerCase()}-${Date.now()}`,
+                isAI: true,
+                score: 0,
+                hasSubmitted: false,
+                wins: 0,
+            });
+        }
     }
 
     game.players.forEach(p => { p.score = 0; });
