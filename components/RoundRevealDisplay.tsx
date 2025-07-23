@@ -1,7 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { Game } from '../types';
-import LicensePlate from './LicensePlate';
 
 interface RoundRevealDisplayProps {
     game: Game;
@@ -32,8 +31,10 @@ const RoundRevealDisplay: React.FC<RoundRevealDisplayProps> = ({ game }) => {
                 {/* Acronym Display */}
                  <div key={`${key}-acronym`} className={`absolute w-full h-full flex flex-col items-center justify-center text-center transition-all duration-700 ease-in-out ${!isThemeReveal ? 'opacity-100 transform-none' : 'opacity-0 translate-y-full'}`}>
                     <p className="font-bebas text-2xl text-slate-300">Your acronym is...</p>
-                    <div className="mt-4">
-                        <LicensePlate region="Ontario" text={acronym} type="acronym" slogan="Get Ready!" />
+                    <div className="mt-4 p-4 bg-gray-900/50 border-2 border-gray-600 rounded-lg shadow-inner">
+                       <p className="text-center font-mono font-bold text-yellow-400 text-6xl md:text-7xl tracking-[1rem] md:tracking-[1.5rem] break-all px-2">
+                           {acronym}
+                       </p>
                     </div>
                 </div>
             </div>

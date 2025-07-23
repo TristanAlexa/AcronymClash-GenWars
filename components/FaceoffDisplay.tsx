@@ -24,6 +24,16 @@ const FaceoffDisplay: React.FC<FaceoffDisplayProps> = ({ game, currentPlayerId, 
         }
     };
     
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        // Submit on Enter press, but allow new lines with Shift+Enter
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault(); // Prevent new line
+            if (backronym.trim() && !playerHasSubmitted) {
+                onFaceoffSubmit(backronym);
+            }
+        }
+    };
+
     const renderContent = () => {
         switch (phase) {
             case 'FaceoffSubmitting':
@@ -34,6 +44,7 @@ const FaceoffDisplay: React.FC<FaceoffDisplayProps> = ({ game, currentPlayerId, 
                             <textarea
                                 value={backronym}
                                 onChange={(e) => setBackronym(e.target.value)}
+                                onKeyDown={handleKeyDown}
                                 placeholder={playerHasSubmitted ? "Waiting for other finalists..." : "Your final witty remark..."}
                                 className="w-full h-32 p-3 bg-slate-900 border-2 border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors text-lg"
                                 maxLength={100}
@@ -42,7 +53,7 @@ const FaceoffDisplay: React.FC<FaceoffDisplayProps> = ({ game, currentPlayerId, 
                             <button
                                 type="submit"
                                 disabled={playerHasSubmitted || !backronym.trim() || countdown <= 0}
-                                className="mt-4 w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-xl transform hover:scale-105 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 font-bebas tracking-wider"
+                                className="mt-4 w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-xl transition-colors duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed font-bebas tracking-wider"
                             >
                                 {playerHasSubmitted ? "Submitted!" : "Submit Final Answer"}
                             </button>
@@ -78,12 +89,12 @@ const FaceoffDisplay: React.FC<FaceoffDisplayProps> = ({ game, currentPlayerId, 
                 );
             case 'FaceoffResults':
                 const winnerSubmission = faceoffSubmissions.sort((a,b) => b.votes.length - a.votes.length)[0];
-                const winner = game.players.find(p => p.id === winnerSubmission.playerId);
+                const winner = game.players.find(p => p.id === winnerSubmission?.playerId);
                 return (
                      <div className="text-center">
                         <p className="text-2xl text-slate-300">The winning entry is...</p>
                         <div className="my-4 p-6 bg-slate-900 border-2 border-yellow-400 rounded-lg">
-                             <p className="italic text-3xl text-white">"{winnerSubmission.backronym}"</p>
+                             <p className="italic text-3xl text-white">"{winnerSubmission?.backronym || 'No entry'}"</p>
                         </div>
                         <p className="text-4xl font-bebas text-cyan-300">Submitted by</p>
                         <p className="text-6xl font-anton text-yellow-400 animate-pulse">{winner?.name || 'A Mystery Player'}</p>

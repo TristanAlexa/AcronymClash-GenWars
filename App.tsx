@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useEffect } from 'react';
 import { Generation, Player, Game, LobbyTheme } from './types';
 import { ALL_REGIONS } from './constants';
@@ -16,7 +14,6 @@ import MainMenu from './components/MainMenu';
 import Lobby from './components/Lobby';
 import ProfilePage from './components/ProfilePage';
 import ThemeSign from './components/ThemeSign';
-import LicensePlate from './components/LicensePlate';
 import LobbyThemeSelector from './components/LobbyThemeSelector';
 import RoundRevealDisplay from './components/RoundRevealDisplay';
 import FaceoffDisplay from './components/FaceoffDisplay';
@@ -161,7 +158,11 @@ const App: React.FC = () => {
                 return (
                     <div className="w-full max-w-2xl mx-auto flex flex-col items-center">
                         <ThemeSign theme={game.theme} />
-                        <LicensePlate region={player.region} text={game.acronym} slogan="Yours To Discover" type="acronym" />
+                        <div className="my-4 p-4 bg-gray-900/50 border-2 border-gray-600 rounded-lg shadow-inner w-full">
+                           <p className="text-center font-mono font-bold text-yellow-400 text-6xl md:text-7xl tracking-[1rem] md:tracking-[1.5rem] break-all px-2">
+                                {game.acronym}
+                            </p>
+                        </div>
                         <SubmissionArea 
                             onSubmit={handlePlayerSubmit} 
                             acronym={game.acronym} 
@@ -241,7 +242,7 @@ const App: React.FC = () => {
 
     return (
         <div className="min-h-screen text-white flex flex-col items-center justify-center p-4 selection:bg-yellow-400 selection:text-black relative overflow-x-hidden">
-             <div className="absolute inset-0 bg-[#3a3a3a]" style={{ backgroundImage: `url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAAAXNSR0IArs4c6QAAARlJREFUaAXt1EEOhDAIRFGn8f+P3t0VpYJIdYmKqL9x594pENsNYgJgACu2Yg9gALf8fCxgAAeY9jvAARa0hglQkQYJECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVigQsGkeAIECVigQsGkeAIECVigQv4BsMWfI1+Dc2zAAAAAElFTkSuQmCC')`}}></div>
+             <div className="absolute inset-0 bg-[#3a3a3a]" style={{ backgroundImage: `url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAAAXNSR0IArs4c6QAAARlJREFUaAXt1EEOhDAIRFGn8f+P3t0VpYJIdYmKqL9x594pENsNYgJgACu2Yg9gALf8fCxgAAeY9jvAARa0hglQkQYJECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVggQcMkeAIECVigQsGkeAIECVigQsGkeAIECVigQsGkeAIECVigQsGkeAIECVigQv4BsMWfI1+Dc2zAAAAAElFTkSuQmCC')`}}></div>
              <div className="absolute top-0 h-full w-full bg-slate-800/80 backdrop-blur-sm"></div>
 
             <div className="relative z-10 w-full flex flex-col items-center flex-grow justify-center">
