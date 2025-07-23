@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Game } from '../types';
+import ThemeSign from './ThemeSign';
 
 interface FaceoffDisplayProps {
     game: Game;
@@ -10,7 +11,7 @@ interface FaceoffDisplayProps {
 }
 
 const FaceoffDisplay: React.FC<FaceoffDisplayProps> = ({ game, currentPlayerId, onFaceoffSubmit, onFaceoffVote }) => {
-    const { phase, faceoffPlayers, faceoffSubmissions, countdown } = game;
+    const { phase, faceoffPlayers, faceoffSubmissions, countdown, acronym, theme } = game;
     const isFaceoffPlayer = faceoffPlayers.includes(currentPlayerId);
     const playerHasSubmitted = game.players.find(p => p.id === currentPlayerId)?.hasSubmitted || false;
     const playerHasVoted = faceoffSubmissions.some(sub => sub.votes.includes(currentPlayerId));
@@ -40,7 +41,7 @@ const FaceoffDisplay: React.FC<FaceoffDisplayProps> = ({ game, currentPlayerId, 
                 if (isFaceoffPlayer) {
                     return (
                         <form onSubmit={handleSubmit} className="w-full max-w-xl">
-                            <h3 className="text-2xl font-semibold text-slate-200 mb-3 text-center">Your Final Entry for <span className="font-bold text-yellow-400">{game.acronym}</span></h3>
+                            <h3 className="text-2xl font-semibold text-slate-200 mb-3 text-center">Your Final Entry</h3>
                             <textarea
                                 value={backronym}
                                 onChange={(e) => setBackronym(e.target.value)}
@@ -107,15 +108,24 @@ const FaceoffDisplay: React.FC<FaceoffDisplayProps> = ({ game, currentPlayerId, 
 
     return (
         <div className="w-full max-w-4xl mx-auto p-8 bg-slate-800/80 backdrop-blur-md rounded-xl shadow-2xl border border-slate-700 flex flex-col items-center">
-            <div className="text-center mb-8">
+            <div className="text-center mb-4">
                 <h2 className="text-6xl font-anton text-yellow-400">FINAL FACEOFF</h2>
-                <p className="text-slate-300 text-lg">For the acronym <span className="font-bold text-white">{game.acronym}</span>. One winner takes all!</p>
+                <p className="text-slate-300 text-lg">One winner takes all!</p>
             </div>
+            
+            <ThemeSign theme={theme} />
+
+            <div className="my-4 p-4 bg-gray-900/50 border-2 border-gray-600 rounded-lg shadow-inner w-full max-w-md">
+                <p className="text-center font-mono font-bold text-yellow-400 text-5xl md:text-6xl tracking-[1rem] break-all px-2">
+                    {acronym}
+                </p>
+            </div>
+
              <div className="absolute top-4 right-4 text-center">
                 <p className={`font-anton text-5xl ${countdown <= 10 ? 'text-red-500 animate-pulse' : 'text-white'}`}>{countdown}</p>
             </div>
             
-            <div className="w-full flex justify-center items-center min-h-[200px]">
+            <div className="w-full flex justify-center items-center min-h-[200px] mt-4">
                 {renderContent()}
             </div>
         </div>

@@ -18,7 +18,7 @@ const NameInput: React.FC<NameInputProps> = ({ onNameSubmit }) => {
     return (
         <div className="w-full max-w-md mx-auto p-8 bg-slate-800/80 backdrop-blur-md rounded-xl shadow-2xl border border-slate-700">
             <h2 className="text-3xl font-bold text-center text-cyan-300 mb-2">Enter Your Player Name</h2>
-            <p className="text-slate-400 text-center mb-8">This will be shown on the leaderboard and your license plate.</p>
+            <p className="text-slate-400 text-center mb-8">This will be shown on the leaderboard.</p>
             <form onSubmit={handleSubmit} className="space-y-6">
                 <input
                     type="text"
