@@ -7,12 +7,19 @@ export const THEMES = {
    */
   general: [
     "Politics",
-    "PopCulture",
+    "Pop Culture",
     "Movies",
     "TV Shows",
     "Celebrities",
     "Video Games",
     "Comics & Superheroes",
+    "Sports",
+    "First World Problems",
+    "Life in in 1850",
+    "Life in 2099",
+    "Adulting 101",
+    "Dating Life",
+    "Married Life",
   ],
 
   /**
