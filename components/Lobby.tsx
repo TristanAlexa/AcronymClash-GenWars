@@ -8,20 +8,64 @@ interface LobbyProps {
     game: Game;
     currentPlayerId: string;
     onLeaveLobby: () => void;
+    onStartGame: () => void;
+    onAddAI: () => void;
+    onRemoveAI: () => void;
 }
 
-const Lobby: React.FC<LobbyProps> = ({ game, currentPlayerId, onLeaveLobby }) => {
+const Lobby: React.FC<LobbyProps> = ({ game, currentPlayerId, onLeaveLobby, onStartGame, onAddAI, onRemoveAI }) => {
     
     const players = game.players;
     const isPrivate = game.id.startsWith('PRIVATE-');
+    const isHost = game.hostId === currentPlayerId;
+    const aiPlayersCount = players.filter(p => p.isAI).length;
+    const canAddAI = players.length < 10;
+    const canRemoveAI = aiPlayersCount > 0;
+
+    const renderLobbyCenter = () => {
+        if (isPrivate) {
+            return (
+                <div className="md:w-2/3 flex flex-col items-center justify-center p-8 bg-slate-800/80 rounded-xl border border-slate-700">
+                    <p className="font-bebas text-3xl text-slate-300 text-center">Waiting for host to start the game...</p>
+                    <Spinner message="Waiting for players..."/>
+
+                    {isHost && (
+                        <div className="mt-6 w-full flex flex-col items-center gap-4">
+                            <div className="flex items-center gap-4">
+                                <p className="font-bebas text-2xl text-white">AI Opponents: {aiPlayersCount}</p>
+                                <button onClick={onRemoveAI} disabled={!canRemoveAI} className="bg-red-600 w-10 h-10 text-3xl font-bold rounded-full disabled:opacity-50 flex items-center justify-center leading-none">-</button>
+                                <button onClick={onAddAI} disabled={!canAddAI} className="bg-green-600 w-10 h-10 text-3xl font-bold rounded-full disabled:opacity-50 flex items-center justify-center leading-none">+</button>
+                            </div>
+
+                            <button
+                                onClick={onStartGame}
+                                className="w-full max-w-xs bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 px-6 rounded-lg text-2xl transform hover:scale-105 transition-transform duration-300 ease-in-out font-bebas tracking-wider"
+                            >
+                                Start Game
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Public lobby with countdown
+        return (
+            <div className="md:w-2/3 flex flex-col items-center justify-center p-8 bg-slate-800/80 rounded-xl border border-slate-700">
+                <p className="font-bebas text-3xl text-slate-300">Game starting in</p>
+                <p className="font-anton text-8xl text-yellow-400">{game.countdown}</p>
+                <Spinner message="Waiting for more players..."/>
+            </div>
+        );
+    };
 
     return (
         <div className="w-full max-w-4xl mx-auto p-4 sm:p-6 bg-slate-800/80 backdrop-blur-md rounded-xl shadow-2xl border border-slate-700">
             <h2 className="text-3xl font-bold text-center text-yellow-400 font-bebas tracking-wider mb-2">Game Lobby</h2>
              {isPrivate && (
                 <div className="text-center mb-4">
-                    <p className="text-slate-300">Share this code with your friends!</p>
-                    <div className="inline-block bg-slate-900/70 p-2 mt-1 rounded-lg">
+                    <p className="text-slate-300">Share this code with your friends! (Click to copy)</p>
+                    <div className="inline-block bg-slate-900/70 p-2 mt-1 rounded-lg cursor-pointer" title="Copy code" onClick={() => navigator.clipboard.writeText(game.id.replace('PRIVATE-', ''))}>
                         <p className="text-3xl font-bold text-white tracking-widest font-mono">{game.id.replace('PRIVATE-', '')}</p>
                     </div>
                 </div>
@@ -48,12 +92,8 @@ const Lobby: React.FC<LobbyProps> = ({ game, currentPlayerId, onLeaveLobby }) =>
                     </div>
                 </div>
 
-                {/* Main Area: Countdown */}
-                <div className="md:w-2/3 flex flex-col items-center justify-center p-8 bg-slate-800/80 rounded-xl border border-slate-700">
-                    <p className="font-bebas text-3xl text-slate-300">Game starting in</p>
-                    <p className="font-anton text-8xl text-yellow-400">{game.countdown}</p>
-                    <Spinner message="Waiting for more players..."/>
-                </div>
+                {/* Main Area: Countdown or Host controls */}
+                {renderLobbyCenter()}
             </div>
 
             {/* Actions */}

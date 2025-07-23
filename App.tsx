@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect } from 'react';
 import { Generation, Player, Game, LobbyTheme } from './types';
 import { ALL_REGIONS } from './constants';
@@ -41,6 +42,12 @@ const App: React.FC = () => {
         });
 
         socket.on('gameNotFound', (message: string) => {
+            setError(message);
+            setGame(null);
+            setView('menu');
+        });
+
+        socket.on('lobbyFull', (message: string) => {
             setError(message);
             setGame(null);
             setView('menu');
@@ -113,6 +120,24 @@ const App: React.FC = () => {
             socket.emit('castFaceoffVote', { gameId: game.id, votedPlayerId });
         }
     };
+
+    const handleStartGame = () => {
+        if (game) {
+            socket.emit('startGameRequest', { gameId: game.id });
+        }
+    };
+
+    const handleAddAI = () => {
+        if (game) {
+            socket.emit('addAI', { gameId: game.id });
+        }
+    };
+
+    const handleRemoveAI = () => {
+        if (game) {
+            socket.emit('removeAI', { gameId: game.id });
+        }
+    };
     
     const renderGameContent = () => {
         if (!game || !player) return <Spinner message="Joining game..." />;
@@ -124,7 +149,10 @@ const App: React.FC = () => {
                 return <Lobby 
                     game={game}
                     currentPlayerId={currentPlayerId}
-                    onLeaveLobby={handleLeaveGame} 
+                    onLeaveLobby={handleLeaveGame}
+                    onStartGame={handleStartGame}
+                    onAddAI={handleAddAI}
+                    onRemoveAI={handleRemoveAI}
                 />;
             case 'RoundThemeReveal':
             case 'RoundAcronymReveal':
@@ -177,7 +205,7 @@ const App: React.FC = () => {
 
     const renderContent = () => {
         if (error) {
-             return <div className="text-center p-4 bg-red-800/80 rounded-lg"><h3 className="text-xl font-bold text-yellow-300">Connection Error</h3><p className="text-white">{error}</p></div>
+             return <div className="text-center p-4 bg-red-800/80 rounded-lg"><h3 className="text-xl font-bold text-yellow-300">Error</h3><p className="text-white">{error}</p></div>
         }
         
         if (!player) return <LoginScreen onLogin={handleLogin} />;

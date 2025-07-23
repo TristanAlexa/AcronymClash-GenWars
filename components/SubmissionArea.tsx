@@ -16,6 +16,16 @@ const SubmissionArea: React.FC<SubmissionAreaProps> = ({ onSubmit, acronym, coun
             onSubmit(backronym);
         }
     };
+    
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        // Submit on Enter press, but allow new lines with Shift+Enter
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault(); // Prevent new line
+            if (backronym.trim() && !hasSubmitted) {
+                onSubmit(backronym);
+            }
+        }
+    };
 
     const isUrgent = countdown <= 10;
     const timeColor = isUrgent ? 'text-red-500' : 'text-black';
@@ -36,6 +46,7 @@ const SubmissionArea: React.FC<SubmissionAreaProps> = ({ onSubmit, acronym, coun
                 <textarea
                     value={backronym}
                     onChange={(e) => setBackronym(e.target.value)}
+                    onKeyDown={handleKeyDown}
                     placeholder={hasSubmitted ? "Waiting for other players..." : "What does it stand for...?"}
                     className="w-full h-32 p-3 bg-slate-900 border-2 border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors text-lg"
                     maxLength={100}
@@ -44,7 +55,7 @@ const SubmissionArea: React.FC<SubmissionAreaProps> = ({ onSubmit, acronym, coun
                 <button
                     type="submit"
                     disabled={isDisabled || !backronym.trim()}
-                    className="mt-4 w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-xl transform hover:scale-105 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 font-bebas tracking-wider"
+                    className="mt-4 w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-xl transition-colors duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed font-bebas tracking-wider"
                 >
                     {hasSubmitted ? "Submitted!" : "Submit"}
                 </button>

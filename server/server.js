@@ -1,4 +1,5 @@
 
+
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -97,8 +98,10 @@ io.on('connection', (socket) => {
         
         joinGame(socket, gameId);
 
-        // Start countdown to begin the game
-        runCountdown(gameId, LOBBY_START_TIME, () => startGame(gameId));
+        // Only start countdown for public games
+        if (!isPrivate) {
+            runCountdown(gameId, LOBBY_START_TIME, () => startGame(gameId));
+        }
     });
 
     socket.on('joinGame', ({ gameId }) => {
@@ -108,6 +111,56 @@ io.on('connection', (socket) => {
         } else {
             socket.emit('gameNotFound', `Game with code ${gameId} not found.`);
         }
+    });
+
+    socket.on('addAI', ({ gameId }) => {
+        const game = games[gameId];
+        const player = socket.data.player;
+        if (!game || !player || game.hostId !== player.id || game.phase !== 'Lobby') return;
+
+        if (game.players.length < LOBBY_SIZE) {
+            const availableAIs = AI_OPPONENTS.filter(aiTemplate => 
+                !game.players.some(p => p.name === aiTemplate.name && p.isAI)
+            );
+            
+            if (availableAIs.length > 0) {
+                const aiTemplate = availableAIs[0];
+                 const newAIPlayer = {
+                    ...aiTemplate,
+                    id: `ai-${aiTemplate.name.toLowerCase()}-${Date.now()}`,
+                    isAI: true, score: 0, hasSubmitted: false, wins: 0,
+                };
+                game.players.push(newAIPlayer);
+                broadcastGameState(gameId);
+            }
+        }
+    });
+
+    socket.on('removeAI', ({ gameId }) => {
+        const game = games[gameId];
+        const player = socket.data.player;
+        if (!game || !player || game.hostId !== player.id || game.phase !== 'Lobby') return;
+
+        let aiPlayerIndex = -1;
+        for (let i = game.players.length - 1; i >= 0; i--) {
+            if (game.players[i].isAI) {
+                aiPlayerIndex = i;
+                break;
+            }
+        }
+
+        if (aiPlayerIndex > -1) {
+            game.players.splice(aiPlayerIndex, 1);
+            broadcastGameState(gameId);
+        }
+    });
+    
+    socket.on('startGameRequest', ({ gameId }) => {
+        const game = games[gameId];
+        const player = socket.data.player;
+        if (!game || !player || game.hostId !== player.id || game.phase !== 'Lobby') return;
+
+        startGame(gameId);
     });
     
     socket.on('leaveGame', ({ gameId }) => {
@@ -207,8 +260,8 @@ function joinGame(socket, gameId) {
         socket.emit('gameInProgress', 'This game has already started.');
         return;
     }
-    if (game.players.filter(p => !p.isAI).length >= LOBBY_SIZE && !game.players.some(p => p.id === player.id)) {
-        socket.emit('lobbyFull', 'This lobby is full.');
+    if (game.players.length >= LOBBY_SIZE && !game.players.some(p => p.id === player.id)) {
+        socket.emit('lobbyFull', 'The lobby you have tried to enter is full.');
         return;
     }
 
@@ -242,7 +295,7 @@ function leaveGame(socket, gameId) {
 
 function startGame(gameId) {
     const game = games[gameId];
-    if (!game) return;
+    if (!game || game.phase !== 'Lobby') return;
 
     // Fill remaining lobby spots with AI up to the max size
     const neededAIs = Math.max(0, LOBBY_SIZE - game.players.length);
@@ -253,11 +306,9 @@ function startGame(gameId) {
 
     for (let i = 0; i < neededAIs && i < availableAIs.length; i++) {
         const aiTemplate = availableAIs[i];
-        const newAIPlayer = { ...aiTemplate };
-        delete newAIPlayer.id; // Remove the template ID
-
+        
         game.players.push({
-            ...newAIPlayer,
+            ...aiTemplate,
             id: `ai-${aiTemplate.name.toLowerCase()}-${Date.now()}`,
             isAI: true,
             score: 0,
